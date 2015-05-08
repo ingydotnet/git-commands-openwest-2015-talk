@@ -50,6 +50,8 @@ git hub issues --raw | git hub issue -
 git hub user mojombo
 git hub followers mojombo -r | git hub followers -r - | sort | uniq | git hub follow -
 # Try doing THAT with GitHub's web UI!
+# Let's see how git-hub (and other git subcommands) work:
+ls -l `git --exec-path`
 vim lib/
 make test
 prove -v test/

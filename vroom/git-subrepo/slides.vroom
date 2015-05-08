@@ -1,122 +1,71 @@
 ---- config
-title: git-hub
+title: git-subrepo
 indent: 5
 auto_size: 1
 vim_opts: '-u NONE'
 skip: 0
 
 ----
-== Welcome to git-hub
+== Welcome to git-subrepo
 
-== 'git hub …' is a new git command.
+== 'git subrepo …' is a new git command.
 
-== https://github.com/ingydotnet/git-hub
-
-----
-== git-hub
-
-* Dozens of useful commands
-* All your GitHub from the terminal
-* GitHub V3 API
-* Easy to Install
+== https://github.com/ingydotnet/git-subrepo
 
 ----
-== Simple Installation / Upgrade
+== git-subrepo
 
-* git-hub has a few ways to install
-* See https://github.com/ingydotnet/git-hub#installation
-* Simplest:
+* A sane alternative to git-submodule
 
-    git clone git@github.com:ingydotnet/git-hub
-    source $PWD/git-hub/init
+  Let's look at the subrepo Doc:
 
-    # Add to your shell config
-
-    # later…
-    git hub upgrade
+    → https://github.com/ingydotnet/git-subrepo#readme
 
 ----
-== User/Org Commands
+== git From the Bottom Up
 
-* git hub user
-* git hub orgs
-* git hub org
-* git hub teams
-* git hub members
-* git hub follow
-* git hub follows
-* git hub followers
-* git hub following
-
-----
-== Repo Commands
-
-* git hub repo
-* git hub repo-new
-* git hub repo-delete
-* git hub repos
-* git hub clone
-* git hub fork
-* git hub forks
-* git hub star
-* git hub stars
-* git hub collabs
-* git hub trust
+* Git is made of 3 things
+  * Blobs (files)
+  * Trees (directories)
+  * Commits (tree at point in time)
+* Blobs contain file content
+* Trees point to Blobs and more Trees
+* Commits point to Trees and more Commits
+* A merge is a commit with more than one parent
+* All very sane
 
 ----
-== Issues and Pull Requests
+== submodule Messes this Up
 
-* git hub issue-new
-* git hub issue-list
-* git hub issue
-* git hub issue-update
-* git hub issue-close
-* git hub comment
-
-* git hub pr-new
-* git hub pr-list
-* git hub pr-diff
-* git hub pr-fetch
-* git hub pr-merge
+* Trees Point to Commits!
+  * Hmm…
+  * Clever right?
++  * NO!!!!!!!!!!!!!!!
+* Every git subcommand is thrown off balance
+* This causes PAIN
+* submodules cause pain across the board
 
 ----
-== Miscellaneous Commands
+== How to Cheat GitHub Private Repos
 
-* git hub help
-* git hub setup
-* git hub upgrade
-* git hub repo-init
-* git hub open
-* git hub url
-* git hub keys
+* A branch is a history chain with a ref name
+* A repo can have infinite branches
+* A branch can be any history chain
+* You can fetch every git repo in the world into one repo
+* Including a GitHub private repo :)
 
-----
-== Command Options
-
-* -r — Raw output (for scripting / power user)
-* -v — Verbose. See curl command
-* -O — API JSON Output
-* -J — API Parsed Output
-* -H — API Response Headers
-* -d — Dry run a command
-* -x — Full debugging trace output
++* Not really a total cheat
+  * Services don't work
+  * Disk limits
+  * But still VERY useful
 
 ----
-== Features
+== This is How subrepo Works
 
-* Full manpage integrated help / doc
-* Context sensitive
-* 'user/repo' syntax
-  * git hub clone 'daoswald/eight-letters'
-  * @ → your-user-login
-* Third Party Plugin Commands
-  * carloslima/git-hub-travis
-* Command Chaining
-* Written all in Bash.
-  * No joke!
-  * Includes Bash JSON parser and Test Framework
-  * Works instantly / anywhere
-  * Bash is a cool new programming language!
+* Fetch in some external repo
+  * Prune off all the parent history
+* Checkout the content into a subdir
+* Add a single commit
 
 ----
-== Let's Try Some Commands!
+== Let's Play w/ git-subrepo
