@@ -1,0 +1,78 @@
+---- config
+title: git-subrepo
+indent: 5
+auto_size: 1
+vim_opts: '-u NONE'
+skip: 0
+
+----
+== Welcome to git-subrepo
+
+== 'git subrepo …' is a new git command.
+
+== https://github.com/ingydotnet/git-subrepo
+
+----
+== git-subrepo
+
+* A sane alternative to git-submodule
+
+  Let's look at the subrepo Doc:
+
+    → https://github.com/ingydotnet/git-subrepo#readme
+
+----
+== git From the Bottom Up
+
+* Git is made of 3 things
+  * Blobs (files)
+  * Trees (directories)
+  * Commits (tree at point in time)
+* Blobs contain file content
+* Trees point to Blobs and more Trees
+* Commits point to Trees and more Commits
+* A merge is a commit with more than one parent
+* All very sane
+
+----
+== submodule Messes this Up
+
+* Trees Point to Commits!
+  * Hmm…
+  * Clever right?
+
++* NO!!!!!!!!!!!!!!!
+
++* Every git subcommand is thrown off balance
+* This causes PAIN
+* submodules cause pain across the board
+
+----
+== How to Cheat GitHub Private Repos
+
+* A branch is a history chain with a ref name
+* A repo can have infinite branches
+* A branch can be any history chain
+* You can fetch every git repo in the world into one repo
+* Including a GitHub private repo :)
+
++* Not really a total cheat
+  * Services don't work
+  * Disk limits
+  * But still VERY useful
+
+----
+== This is How subrepo Works
+
+* Fetch in some external repo
+  * Prune off all the parent history
+* Checkout the content into a subdir
+* Add a single commit
+* Now this is NORMAL repo content
+
++* EVERYTHING WORKS (as it should)
+* and yet subrepo can treat them separately
+  * pull / push etc
+
+----
+== Let's Play w/ git-subrepo
