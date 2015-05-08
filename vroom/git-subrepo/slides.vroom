@@ -40,8 +40,10 @@ skip: 0
 * Trees Point to Commits!
   * Hmm…
   * Clever right?
-+  * NO!!!!!!!!!!!!!!!
-* Every git subcommand is thrown off balance
+
++* NO!!!!!!!!!!!!!!!
+
++* Every git subcommand is thrown off balance
 * This causes PAIN
 * submodules cause pain across the board
 
@@ -66,6 +68,11 @@ skip: 0
   * Prune off all the parent history
 * Checkout the content into a subdir
 * Add a single commit
+* Now this is NORMAL repo content
+
++* EVERYTHING WORKS (as it should)
+* and yet subrepo can treat them separately
+  * pull / push etc
 
 ----
 == Let's Play w/ git-subrepo

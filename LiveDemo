@@ -58,3 +58,4 @@ prove -v test/
 vim ext/
 # That was fun. Now let's talk about git-subrepo
 ♥ git-subrepo
+# THE END
