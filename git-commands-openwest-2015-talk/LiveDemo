@@ -1,0 +1,58 @@
+♥ intro
+🔥 https://github.com/ingydotnet?tab=repositories
+# NOW WATCH THIS!!!
+git hub repo-new demo2 -d
+git hub org-members perl6 -r | git hub trust demo2 - -d
+Ⓕ  ' ' 'Boom!'
+♥ git-hub
+git hub user ingydotnet
+git hub user
+git hub config | perl -pe 's/\S{40}/********/'
+git hub -h | less
+git hub help
+git hub help --all | less
+git help hub
+git hub help clone
+cd src/eight-letters
+git hub user
+git hub repos
+git hub user ingydotnet
+git hub repos daoswald
+git hub repos @
+git hub repo @/live-demo
+git hub repo
+git hub star
+git hub repo
+git hub follow
+git hub open
+git hub url
+git hub url README.md
+cd
+# git-hub has many interesting flags:
+git hub -h
+git hub user -v
+git hub user -v -d
+git hub user -H
+git hub user -O
+git hub user -J
+git hub user -vHOJ
+git hub user -x
+# Chaining commands is simple scripting
+git hub repos daoswald
+git hub repos daoswald --raw --count 5
+git hub repos daoswald -r -c5 | git hub star -
+git hub repos daoswald -r -c5 | git hub unstar -
+cd ~/src/git-hub
+git hub issues
+git hub issues --raw
+git hub issue 92
+git hub issues --raw | git hub issue -
+git hub user mojombo
+git hub followers mojombo -r | git hub followers -r - | sort | uniq | git hub follow -
+# Try doing THAT with GitHub's web UI!
+vim lib/
+make test
+prove -v test/
+vim ext/
+# That was fun. Now let's talk about git-subrepo
+♥ git-subrepo

@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:ingydotnet/git-commands-openwest-2015-talk.git
+	branch = master
+	commit = 145abb081c93d93974dceef3a2c6a7079a4188ab
+	parent = b200dfa849989c05cebb22d16daa6f6c4cb05630
+	cmdver = 0.2.1
