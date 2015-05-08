@@ -1,0 +1,24 @@
+---
+version: 0.2.1
+date:    Sat Mar 28 07:52:22 PDT 2015
+changes:
+- Allows subrepo clone to clone to an empty branch; fixes #26.
+- Refs in status
+- Empty parent set to 'none' in .gitrepo file.
+- Bug fixes
+---
+version: 0.2.0
+date:    Sat Jan 24 06:22:05 PST 2015
+changes:
+- Massive overhaul
+- .gitrepo files remain the same so backwards compatible
+- Introduce the branch and commit subcommands
+- The checkout subcommand goes away
+- Operations work much smoother like normal Git flow
+- Much more testing
+- Better doc
+---
+version: 0.1.0
+date:    Fri Feb 21 12:25:53 2014 -0800
+changes:
+- First version

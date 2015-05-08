@@ -1,0 +1,1310 @@
+#!/usr/bin/env bash
+#
+# Copyright 2013-2015 - Ingy döt Net <ingy@ingy.net>
+#
+
+# Exit on any errors:
+set -e
+
+# Import Bash+ helper functions:
+source "${BASH_SOURCE%/*}/git-subrepo.d/bash+.bash"
+bash+:import :std can
+
+VERSION=0.2.1
+
+# `git rev-parse` turns this into a getopt parser and a command usage message:
+GETOPT_SPEC="\
+git subrepo <command> <arguments> <options>
+
+Commands:
+  clone     Clone a remote repository into a local sub-directory
+  pull      Pull upstream changes to the subrepo
+  push      Push local subrepo changes upstream
+
+  fetch     Fetch a subrepo's remote branch (and create a ref for it)
+  branch    Create a branch containing the local subrepo commits
+  commit    Commit a merged subrepo branch into the mainline
+
+  status    Get status of a subrepo (or all of them)
+  clean     Remove branches, remotes and refs for a subrepo
+
+  help      Documentation for git-subrepo (or specfic command)
+  version   Display git-subrepo version info
+
+See 'git help subrepo' for complete documentation and usage of each command.
+
+Options:
+--
+h           Show the command summary
+help        Help overview
+version     Print the git-subrepo version number
+
+a,all       Perform command on all current subrepos
+b,branch=   Specify an upstream branch
+f,force     Force certain operations
+F,fetch     Fetch the upstream content first
+r,remote=   Specify an upstream remote
+u,update    Add the --branch and/or --remote overrides to .gitrepo
+
+q,quiet     Show minimal output
+v,verbose   Show verbose output
+d,debug     Show the actual commands used
+x,DEBUG     Turn on -x Bash debugging
+"
+
+#------------------------------------------------------------------------------
+# Top level function:
+#------------------------------------------------------------------------------
+main() {
+  # Define global variables:
+  local command=                # Subrepo subcommand to run
+  local command_arguments=()    # Command args after getopt parsing
+  local commit_msg_args=()      # Arguments to show in the commit msg
+  local subrepos=()             # List of multiple subrepos
+  local quiet_wanted=false      # Output should be quiet
+  local verbose_wanted=false    # Output should be verbose
+  local debug_wanted=false      # Show debug messages
+  local all_wanted=false        # Apply command to all subrepos
+  local force_wanted=false      # Force certain operations
+  local fetch_wanted=false      # Fetch requested before a command
+  local update_wanted=false     # Update .gitrepo with --branch and/or --remote
+
+  local subdir=                 # Subdirectory of the subrepo being used
+  local gitrepo=                # Path to .gitrepo file
+
+  local original_head_commit=   # HEAD commit id at start of command
+  local original_head_branch=   # HEAD ref at start of command
+  local upstream_head_commit=   # HEAD commit id from a subrepo fetch
+
+  local subrepo_remote=         # Remote url for subrepo's upstream repo
+  local subrepo_branch=         # Upstream branch to clone/push/pull
+  local subrepo_commit=         # Upstream HEAD from previous clone/pull
+  local subrepo_parent=         # Local commit from before previous clone/pull
+  local subrepo_former=         # A retired gitrepo key that might still exist
+
+  local refs_subrepo_branch=    # A subrepo ref -> commit of branch command
+  local refs_subrepo_commit=    # A subrepo ref -> commit last merged
+  local refs_subrepo_fetch=     # A subrepo ref -> FETCH_HEAD after fetch
+  local refs_subrepo_pull=      # A subrepo ref -> branch after pull
+  local refs_subrepo_push=      # A subrepo ref -> branch after push
+
+  local override_remote=        # Remote specified with -r
+  local override_branch=        # Remote specified with -b
+
+  local FAIL=true               # Flag for RUN: fail on error
+  local OUT=false               # Flag for RUN: put output in $output
+  local SAY=true                # Flag for RUN: print command for verbose
+  local EXEC=false              # Flag for RUN: run subprocess
+  local OK=true                 # Flag that commands have succeeded
+  local CODE=0                  # Failure reason code
+  local INDENT=                 # Verbose indentation
+
+  local git_version=            # Git version in use
+
+  # Check environment and parse CLI options:
+  assert-environment-ok
+
+  # Parse and validate command options:
+  get-command-options "$@"
+
+  # Make sure repo is in the proper state:
+  assert-repo-is-ready
+
+  command-init
+
+  # Run the command:
+  if $all_wanted; then
+    local args=( "${command_arguments[@]}" )
+    get-all-subrepos
+    for subdir in ${subrepos[*]}; do
+      subrepo_remote=
+      subrepo_branch=
+      command_arguments=( "$subdir" "${args[@]}" )
+      "command:$command"
+    done
+  else
+    "command:$command"
+  fi
+}
+
+#------------------------------------------------------------------------------
+# API command functions.
+#
+# Most of these commands call a subrepo:$command function to do the actual
+# work. The user facing output is done  (via `say`) is done up here. The
+# subrepo:* worker functions are meant to be called interally and don't print
+# info to the user.
+#------------------------------------------------------------------------------
+
+# `git subrepo clone <url> [<subdir>]` command:
+command:clone() {
+  command-setup +subrepo_remote subdir:guess-subdir
+
+  # Clone (or reclone) the subrepo into the subdir:
+  local reclone_up_to_date=false
+  subrepo:clone
+  if "$reclone_up_to_date"; then
+    say "Subrepo '$subdir' is up to date."
+    return
+  fi
+
+  # Successful command output:
+  local re=
+  $force_wanted && re=re
+  local remote="$subrepo_remote"
+  say "Subrepo '$remote' ($subrepo_branch) ${re}cloned into '$subdir'."
+}
+
+# `git subrepo pull <subdir>` command:
+command:pull() {
+  command-setup +subdir
+
+  subrepo:pull
+  if OK; then
+    say "Subrepo '$subdir' pulled from '$subrepo_remote' ($subrepo_branch)."
+  elif [[ "$CODE" -eq -1 ]]; then
+    say "Subrepo '$subdir' is up to date."
+  elif [[ "$CODE" -eq 1 ]]; then
+    error-pull-rebase
+    return "$CODE"
+  else
+    die "Unknown pull error code: '$CODE'"
+  fi
+  return 0
+}
+
+# `git subrepo push <subdir>` command:
+command:push() {
+  local branch=
+  command-setup +subdir branch
+  subrepo:push
+  if OK; then
+    say "Subrepo '$subdir' pushed to '$subrepo_remote' ($subrepo_branch)."
+  elif [[ "$CODE" -eq -1 ]]; then
+    say "Subrepo '$subdir' has no new commits to push."
+  elif [[ "$CODE" -eq 2 ]]; then
+    error-push-rebase
+    return "$CODE"
+  else
+    die "Unknown push error code: '$CODE'"
+  fi
+  return 0
+}
+
+# `git subrepo fetch <subdir>` command
+command:fetch() {
+  command-setup +subdir
+  subrepo:fetch
+  say "Fetched '$subrepo_remote' ($subrepo_branch)."
+}
+
+# `git subrepo branch <subdir>` command:
+command:branch() {
+  command-setup +subdir
+  if $fetch_wanted; then
+    o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+    CALL subrepo:fetch
+  fi
+
+  if $force_wanted; then
+    FAIL=false RUN git branch -D "subrepo/$subdir"
+  fi
+
+  local branch="subrepo/$subdir"
+  if git:branch-exists "$branch"; then
+    error "Branch '$branch' already exists. Use '--force' to override."
+  fi
+
+  # Create the subrepo branch:
+  subrepo:branch
+  if ! OK; then
+    say "Can't create branch '$branch'. No new commits since last pull/clone."
+    return
+  fi
+
+  o "Create ref '$refs_subrepo_branch' for branch '$branch'."
+  git:make-ref "$refs_subrepo_branch" "$branch"
+
+  say "Created branch '$branch'."
+}
+
+# `git subrepo commit <subdir>` command
+command:commit() {
+  command-setup +subdir subrepo_commit_ref
+
+  if "$fetch_wanted"; then
+    o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+    CALL subrepo:fetch
+  fi
+  git:rev-exists "$refs_subrepo_fetch" ||
+    error "Can't find ref '$refs_subrepo_fetch'. Try using -F."
+  upstream_head_commit="$(git rev-parse "$refs_subrepo_fetch")"
+
+  [ -n "$subrepo_commit_ref" ] ||
+    subrepo_commit_ref="subrepo/$subdir"
+  subrepo:commit
+
+  say "Subrepo commit '$subrepo_commit_ref' committed as"
+  say "subdir '$subdir/' to branch '$original_head_branch'."
+}
+
+# `git subrepo status [<subdir>]` command:
+command:status() {
+  subrepo:status | ${GIT_SUBREPO_PAGER}
+}
+
+status-refs() {
+  local output=
+  while read line; do
+    [[ "$line" =~ ^([0-9a-f]+)\ refs/subrepo/$subdir/([a-z]+) ]] || continue
+    local sha1="$(git rev-parse --short "${BASH_REMATCH[1]}")"
+    local type="${BASH_REMATCH[2]}"
+    local ref="refs/subrepo/$subdir/$type"
+    if [ "$type" == branch ]; then
+      output+="    Branch Ref:    $sha1 ($ref)"$'\n'
+    elif [ "$type" == commit ]; then
+      output+="    Commit Ref:    $sha1 ($ref)"$'\n'
+    elif [ "$type" == fetch ]; then
+      output+="    Fetch Ref:     $sha1 ($ref)"$'\n'
+    elif [ "$type" == pull ]; then
+      output+="    Pull Ref:      $sha1 ($ref)"$'\n'
+    elif [ "$type" == push ]; then
+      output+="    Push Ref:      $sha1 ($ref)"$'\n'
+    fi
+  done < <(git show-ref)
+  if [ -n "$output" ]; then
+    printf "  Refs:\n$output"
+  fi
+}
+
+# `git subrepo clean <subdir>` command
+command:clean() {
+  command-setup +subdir
+  local clean_list=()
+  subrepo:clean
+  for item in "${clean_list[@]}"; do
+    say "Removed $item."
+  done
+}
+
+# Launch the manpage viewer:
+command:help() {
+  exec git help subrepo
+}
+
+# Print version info.
+# TODO: Add short commit id after version.
+#       Will need to get it from repo or make install can put it somewhere.
+command:version() {
+  cat <<...
+git-subrepo Version: $VERSION
+Copyright 2013-2015 Ingy döt Net
+https://github.com/git-commands/git-subrepo
+$BASH_SOURCE
+Git Version: $git_version
+
+...
+  :
+}
+
+#------------------------------------------------------------------------------
+# Subrepo command worker functions.
+#------------------------------------------------------------------------------
+
+# Clone by fetching remote content into our subdir:
+subrepo:clone() {
+  re="$1"
+
+  # Turn off force unless really a reclone:
+  if $force_wanted && [ ! -f "$gitrepo" ]; then
+    force_wanted=false
+  fi
+
+  if $force_wanted; then
+    o "--force indicates a reclone."
+    o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+    CALL subrepo:fetch
+    read-gitrepo-file
+    o "Check if we already are up to date."
+    if [ "$upstream_head_commit" == "$subrepo_commit" ]; then
+      reclone_up_to_date=true
+      return
+    fi
+    o "Remove the old subdir."
+    RUN git rm -r "$subdir"
+  else
+    assert-subdir-empty
+    if [ -z "$subrepo_branch" ]; then
+      o "Determine the upstream head branch."
+      get-upstream-head-branch
+      subrepo_branch="$output"
+    fi
+    o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+    CALL subrepo:fetch
+  fi
+
+  o "Make the directory '$subdir/' for the clone."
+  RUN mkdir -p "$subdir"
+
+  o "Commit the new '$subdir/' content:"
+  subrepo_commit_ref="$upstream_head_commit"
+  CALL subrepo:commit
+}
+
+# Properly merge a local subrepo branch with upstream and commit to mainline:
+subrepo:pull() {
+  o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+  CALL subrepo:fetch
+
+  # Check if we already are up to date:
+  if [ "$upstream_head_commit" == "$subrepo_commit" ]; then
+    OK=false; CODE=-1; return
+  fi
+
+  local branch_name="subrepo/$subdir"
+  if git:branch-exists "$branch_name"; then
+    o "Deleting old '$branch_name' branch."
+    RUN git branch -D "$branch_name"
+  fi
+  o "Create subrepo branch '$branch_name':"
+  CALL subrepo:branch
+  if OK; then
+    o "git rebase $upstream_ref $branch_name"
+    FAIL=false OUT=true RUN git rebase "$refs_subrepo_fetch" "$branch_name"
+    if ! OK; then
+      o "The rebase command failed:"$'\n'----$'\n'"$output"$'\n'----
+      CODE=1; return
+    fi
+    o "Checkout '$original_head_branch'."
+    git checkout --quiet "$original_head_branch"
+  else
+    o "Subrepo branch failed. No local subrepo commits to merge."
+    o "Create branch '$branch_name' from the fetched upstream instead."
+    RUN git branch "$branch_name" "$refs_subrepo_fetch"
+  fi
+
+  o "Commit the new '$subdir/' content:"
+  subrepo_commit_ref="$branch_name"
+  CALL subrepo:commit
+
+  o "Create ref '$refs_subrepo_pull' for branch '$branch_name'."
+  git:make-ref "$refs_subrepo_pull" "$branch_name"
+}
+
+# Push a properly merged subrepo branch upstream:
+subrepo:push() {
+  local branch_name="$branch"
+  if [ -z "$branch_name" ]; then
+    o "Fetch the upstream: $subrepo_remote ($subrepo_branch):"
+    CALL subrepo:fetch
+
+    branch_name="subrepo-push/$subdir"
+    if git:branch-exists "$branch_name"; then
+      error "There is a previous push branch '$branch_name'. Delete it first."
+    fi
+
+    o "Create subrepo branch '$branch_name':"
+    CALL subrepo:branch "$branch_name"
+    if ! OK; then
+      CODE=-1; return
+    fi
+
+    o "git rebase $refs_subrepo_fetch $branch_name"
+    FAIL=false OUT=true RUN git rebase "$refs_subrepo_fetch" "$branch_name"
+    if ! OK; then
+      o "The rebase command failed:"$'\n'----$'\n'"$output"$'\n'----
+      CODE=2; return
+    fi
+    RUN git checkout "$original_head_branch"
+  else
+    if ! git:rev-exists "$branch_name"; then
+      error "'$branch_name' is not a valid commit."
+    fi
+  fi
+
+  o "Make sure that '$branch_name' exists."
+  git:branch-exists "$branch_name" ||
+    error "No subrepo branch '$branch_name' to push."
+
+  if ! "$force_wanted"; then
+    o "Make sure '$branch_name' contains the '$refs_subrepo_fetch' HEAD."
+    if ! git:commit-in-rev-list "$upstream_head_commit" "$branch_name"; then
+      error "Can't commit: '$branch_name' doesn't contain upstream HEAD."
+    fi
+  fi
+
+  local force=
+  "$force_wanted" && force=--force
+
+  o "Push branch '$branch_name' to '$subrepo_remote' ($subrepo_branch)."
+  RUN git push $force "$subrepo_remote" "$branch_name":"$subrepo_branch"
+
+  o "Create ref '$refs_subrepo_push' for branch '$branch_name'."
+  git:make-ref "$refs_subrepo_push" "$branch_name"
+
+  if [ "$branch_name" == "subrepo-push/$subdir" ]; then
+    o "Remove branch '$branch_name'"
+    RUN git branch -D "$branch_name"
+  fi
+}
+
+# Fetch the subrepo's remote branch content:
+subrepo:fetch() {
+  o "Fetch '$subrepo_remote' ($subrepo_branch)"
+  RUN git fetch --quiet "$subrepo_remote" "$subrepo_branch"
+
+  o "Get the upstream subrepo HEAD commit."
+  OUT=true RUN git rev-parse FETCH_HEAD
+  upstream_head_commit="$output"
+
+  local output=$(git config "remote.subrepo/$subdir.url")
+  if [ -z "$output" ]; then
+    o "Create subrepo remote 'subrepo/$subdir' -> '$subrepo_remote'."
+    RUN git remote add "subrepo/$subdir" "$subrepo_remote"
+  else
+    if [ "$output" != "$subrepo_remote" ]; then
+      o "Change subrepo remote 'subrepo/$subdir' -> '$subrepo_remote'."
+      git remote set-url "subrepo/$subdir" "$subrepo_remote"
+    fi
+  fi
+
+  o "Create ref '$refs_subrepo_fetch'."
+  git:make-ref "$refs_subrepo_fetch" FETCH_HEAD
+}
+
+# Create a subrepo branch of changes since last pull:
+subrepo:branch() {
+  local branch="${1:-"subrepo/$subdir"}"
+  o "Check if the '$branch' branch already exists."
+  git:branch-exists "$branch" && return
+
+  o "Make sure there is at least one commit after the last pull."
+  # (That translates to 2 commits after the parent of last pull):
+  local count="$(git rev-list "$subrepo_parent"..HEAD -2 | grep -c $'\n')"
+  if [ "$count" != 2 ]; then
+    OK=false; CODE=-1; return
+  fi
+
+  o "Remove the commits before last pull."
+  FAIL=false RUN git filter-branch --force \
+    --parent-filter "grep -v $subrepo_parent || true" \
+    -- "$subrepo_parent"..HEAD
+
+  # Note: We need to have the last pull commit or this next step can fail.
+  o "Get commits specific to the subdir."
+  FAIL=false RUN git filter-branch -f \
+    --subdirectory-filter "$subdir" \
+    HEAD
+
+  o "Make sure there are *subrepo* commits after the last pull."
+  local count="$(git rev-list HEAD -2 | grep -c $'\n')"
+  if [ "$count" != 2 ]; then
+    # Reset to the branch where we started:
+    RUN git reset --hard "$original_head_commit"
+    OK=false
+    return
+  fi
+
+  # Now we can get rid of the previous pull commit.
+  # First get the final commit, which is the last pull one:
+  local prev_pull_commit="$(git rev-list HEAD | tail -1)"
+  [ -n "$prev_pull_commit" ] ||
+    die "Can't find previous clone/pull commit."
+
+  o "Remove the previous pull commit."
+  FAIL=false RUN git filter-branch --force \
+    --parent-filter "grep -v $prev_pull_commit || true" \
+    -- "$prev_pull_commit"..HEAD
+
+  o "Remove the .gitrepo file from the history."
+  RUN git filter-branch -f \
+    --tree-filter "rm -f .gitrepo"
+
+  o "Create branch '$branch' for this new commit set."
+  RUN git branch "$branch"
+
+  o "Reset to the '$original_head_branch' branch."
+  RUN git reset --hard "$original_head_commit"
+}
+
+# Commit a merged subrepo branch:
+subrepo:commit() {
+  o "Check that '$subrepo_commit_ref' exists"
+  git:rev-exists "$subrepo_commit_ref" ||
+    error "Commit ref '$subrepo_commit_ref' does not exist."
+
+  if ! "$force_wanted"; then
+    local upstream="$upstream_head_commit"
+    o "Make sure '$subrepo_commit_ref' contains the upstream HEAD."
+    if ! git:commit-in-rev-list "$upstream" "$subrepo_commit_ref"; then
+      error \
+        "Can't commit: '$subrepo_commit_ref' doesn't contain upstream HEAD."
+    fi
+  fi
+
+  o "Remove old content of the subdir."
+  (
+    cd "./$subdir"
+    RUN rm -fr $(ls -A)
+  )
+
+  o "Put remote subrepo content into '$subdir/'."
+  GIT_WORK_TREE="$subdir" RUN git reset --hard "$subrepo_commit_ref"
+
+  o "Reset index to original commit."
+  if [ "$original_head_commit" != none ]; then
+    RUN git reset --mixed "$original_head_commit"
+  else
+    RUN git reset --mixed
+    # index currently considers $subdir content as deleted at root.
+    o "Delete the index."
+    local indexfile="${GIT_INDEX_FILE:-$(git rev-parse --git-dir)/index}"
+    RUN rm -f "$indexfile"
+  fi
+
+  o "Put info into '$subdir/.gitrepo' file."
+  update-gitrepo-file
+
+  o "Add '$subdir/' content to the index."
+  RUN git add -A "$subdir"
+
+  o "Commit to the '$original_head_branch' branch."
+  if [ "$original_head_commit" != none ]; then
+    RUN git commit -m "$(get-commit-message)"
+  else
+    # We had cloned into an empty repo, side effect of prior git reset --mixed
+    # command is that subrepo's history is now part of the index. Commit
+    # without that history.
+    OUT=true RUN git write-tree
+    OUT=true RUN git commit-tree -m "$(get-commit-message)" "$output"
+    RUN git reset --hard "$output"
+  fi
+
+  o "Create ref '$refs_subrepo_commit'."
+  git:make-ref "$refs_subrepo_commit" "$subrepo_commit_ref"
+}
+
+subrepo:status() {
+  if [ ${#command_arguments[@]} -eq 0 ]; then
+    get-all-subrepos
+    local count=${#subrepos[@]}
+    if ! "$quiet_wanted"; then
+      if [ $count -eq 0 ]; then
+        echo "No subrepos."
+        return
+      else
+        local s=; [ "$count" -eq 1 ] || s=s
+        echo "$count subrepo$s:"
+        echo
+      fi
+    fi
+  else
+    subrepos=("${command_arguments[@]}")
+  fi
+
+  for subdir in "${subrepos[@]}"; do
+    subdir="${subdir#./}"
+    subdir="${subdir%/}"
+
+    if [ ! -f "$subdir/.gitrepo" ]; then
+      echo "'$subdir' is not a subrepo"
+      echo
+      continue
+    fi
+
+    refs_subrepo_fetch="refs/subrepo/$subdir/fetch"
+    upstream_head_commit="$(
+      git rev-parse --short "$refs_subrepo_fetch" 2> /dev/null || true
+    )"
+    subrepo_remote=
+    subrepo_branch=
+
+    read-gitrepo-file
+    if $fetch_wanted; then
+      subrepo:fetch
+    fi
+
+    if $quiet_wanted; then
+      echo "$subdir"
+      continue
+    fi
+
+    echo "Git subrepo '$subdir':"
+    git:branch-exists "subrepo/$subdir" &&
+      echo "  Subrepo Branch:  subrepo/$subdir"
+    local remote="subrepo/$subdir"
+    FAIL=false OUT=true RUN git config "remote.$remote.url"
+    [ -n "$output" ] &&
+      echo "  Remote Name:     subrepo/$subdir"
+    echo "  Remote URL:      $subrepo_remote"
+    [ -n "$upstream_head_commit" ] &&
+      echo "  Upstream Ref:    $upstream_head_commit"
+    echo "  Tracking Branch: $subrepo_branch"
+    [ -z "$subrepo_commit" ] ||
+      echo "  Pulled Commit:   $(git rev-parse --short $subrepo_commit)"
+    if [ -n "$subrepo_parent" ]; then
+      echo "  Pull Parent:     $(git rev-parse --short $subrepo_parent)"
+    # TODO Remove this eventually:
+    elif [ -n "$subrepo_former" ]; then
+      printf "  Former Commit:   $(git rev-parse --short $subrepo_former)"
+      echo " *** DEPRECATED ***"
+    fi
+
+    if "$verbose_wanted"; then
+      status-refs
+    fi
+
+    echo
+  done
+}
+
+subrepo:clean() {
+  # Remove subrepo branches if exist:
+  for prefix in subrepo subrepo-push; do
+    local branch="$prefix/$subdir"
+    local ref="refs/heads/$branch"
+    if [ -e ".git/$ref" ]; then
+      o "Remove branch '$branch'."
+      RUN git update-ref -d "$ref"
+      clean_list+=("branch '$branch'")
+    fi
+  done
+
+  local remote="subrepo/$subdir"
+  FAIL=false OUT=true RUN git config "remote.$remote.url"
+  if [ -n "$output" ]; then
+    o "Remove remote '$remote'."
+    RUN git remote rm "$remote"
+    clean_list+=("remote '$remote'")
+  fi
+
+  if "$force_wanted"; then
+    o "Remove all subrepo refs."
+    if "$all_wanted"; then
+      RUN rm -fr .git/refs/subrepo/
+    else
+      RUN rm -fr .git/refs/subrepo/$subdir/
+    fi
+  fi
+}
+
+#------------------------------------------------------------------------------
+# Support functions:
+#------------------------------------------------------------------------------
+
+# TODO:
+# Collect original options and arguments into an array for commit message
+#   They should be normalized and pruned
+
+# Parse command line options:
+get-command-options() {
+  [ $# -eq 0 ] && set -- --help
+
+  [ -n "$GIT_SUBREPO_DEBUG" ] && set -x
+  [ -n "$GIT_SUBREPO_QUIET" ] && quiet_wanted=true
+  [ -n "$GIT_SUBREPO_VERBOSE" ] && verbose_wanted=true
+  [ -n "$GIT_SUBREPO_DEBUG" ] && debug_wanted=true
+
+  eval "$(
+    echo "$GETOPT_SPEC" |
+      git rev-parse --parseopt -- "$@" ||
+    echo exit $?
+  )"
+
+  while [ $# -gt 0 ]; do
+    local option="$1"; shift
+    case "$option" in
+      --) break ;;
+      -a) all_wanted=true ;;
+      -b) subrepo_branch="$1"
+          override_branch="$1"
+          commit_msg_args+=("--branch=$1")
+          shift ;;
+      -f) force_wanted=true
+          commit_msg_args+=("--force") ;;
+      -F) fetch_wanted=true ;;
+      -r) subrepo_remote="$1"
+          override_remote="$1"
+          commit_msg_args+=("--remote=$1")
+          shift ;;
+      -u) update_wanted=true
+          commit_msg_args+=("--update") ;;
+      -q) quiet_wanted=true ;;
+      -v) verbose_wanted=true ;;
+      -d) debug_wanted=true ;;
+      -x) set -x ;;
+      --version)
+        echo "$VERSION"
+        exit ;;
+      *) error "Unexpected option: '$option'." ;;
+    esac
+  done
+
+  # Set subrepo command:
+  command="$1"; shift
+
+  # Make sure command exists:
+  can "command:$command" ||
+    error "'$command' is not a command. See 'git subrepo help'."
+
+  command_arguments=("$@")
+  if [ ${#command_arguments} -gt 0 ]; then
+    local first="${command_arguments[0]}"
+    first="${first%/}"
+    command_arguments[0]="$first"
+  fi
+  commit_msg_args+=("${command_arguments[@]}")
+
+  if $all_wanted; then
+    check_option all
+  fi
+  if $force_wanted; then
+    check_option force
+  fi
+  if $fetch_wanted; then
+    check_option fetch
+  fi
+  if [ -n "$override_branch" ]; then
+    check_option branch
+  fi
+  if [ -n "$override_remote" ]; then
+    check_option remote
+  fi
+  if $update_wanted; then
+    check_option update
+    if [ -z "$subrepo_branch" -o -z "$subrepo_remote" ]; then
+      error "Can't use '--update' without '--branch' or '--remote'."
+    fi
+  fi
+}
+
+options_branch='all fetch force'
+options_clean='all force'
+options_clone='branch force'
+options_commit='fetch force'
+options_fetch='all branch remote'
+options_pull='all branch remote update'
+options_push='all branch force remote update'
+options_status='fetch'
+check_option() {
+  local var="options_$command"
+  [[ ${!var} =~ $1 ]] ||
+    error "Invalid option '--$1' for '$command'."
+}
+
+#------------------------------------------------------------------------------
+# Command argument validation:
+#------------------------------------------------------------------------------
+
+command-init() {
+  : "${GIT_SUBREPO_PAGER:=${PAGER:-less}}"
+  if [ "$GIT_SUBREPO_PAGER" == less ]; then
+    GIT_SUBREPO_PAGER='less -FRX'
+  fi
+}
+
+# Do the setup steps needed by most of the subrepo subcommands:
+command-setup() {
+  get-params "$@"
+
+  # Sanity check subdir:
+  [ -n "$subdir" ] ||
+    die "subdir not set"
+  [[ "$subdir" =~ ^/ ]] &&
+    error "The subdir '$subdir' should not be absolute path."
+  subdir="${subdir#./}"
+  subdir="${subdir%/}"
+
+  # Set refs_ variables:
+  refs_subrepo_branch="refs/subrepo/$subdir/branch"
+  refs_subrepo_commit="refs/subrepo/$subdir/commit"
+  refs_subrepo_fetch="refs/subrepo/$subdir/fetch"
+  refs_subrepo_pull="refs/subrepo/$subdir/pull"
+  refs_subrepo_push="refs/subrepo/$subdir/push"
+
+  # Read/parse the .gitrepo file (unless clone; doesn't exist yet)
+  gitrepo="$subdir/.gitrepo"
+  if [ "$command" != "clone" ]; then
+    read-gitrepo-file
+  fi
+
+  true
+}
+
+# Parse command line args according to a simple dsl spec:
+get-params() {
+  local i=0
+  local num=${#command_arguments[@]}
+  for arg in $@; do
+    # If arg starts with '+' then it is required
+    if [[ "$arg" =~ ^\+ ]]; then
+      if [ $i -ge $num ]; then
+        error "Command '$command' requires arg '${arg#+}'."
+      fi
+      printf -v ${arg#+} "${command_arguments[i]}"
+    # Look for function name after ':' to provide a default value
+    else
+      if [ $i -lt $num ]; then
+        printf -v ${arg%:*} "${command_arguments[i]}"
+      elif [[ "$arg" =~ : ]]; then
+        "${arg#*:}"
+      fi
+    fi
+    let i=$((i+1))
+  done
+
+  # Check for extra arguments:
+  if [ $num -gt $i ]; then
+    set -- ${command_arguments[@]}
+    for ((j = 1; j <= i; j++)); do shift; done
+    error "Unknown argument(s) '$*' for '$command' command."
+  fi
+}
+
+# Determine the correct subdir path to use:
+guess-subdir() {
+  local dir="$subrepo_remote"
+  dir="${dir%.git}"
+  dir="${dir%/}"
+  dir="${dir##*/}"
+  [[ "$dir" =~ ^[-a-zA-Z0-9]+$ ]] ||
+    error "Can't determine subdir from '$subrepo_remote'."
+  subdir="$dir"
+}
+
+#------------------------------------------------------------------------------
+# State file (`.gitrepo`) functions:
+#------------------------------------------------------------------------------
+
+# Set subdir and gitrepo vars:
+read-gitrepo-file() {
+  gitrepo="$subdir/.gitrepo"
+
+  if [ ! -f "$gitrepo" ]; then
+    error "'$subdir' is not a subrepo."
+  fi
+
+  # Read .gitrepo values:
+  if [ -z "$subrepo_remote" ]; then
+    SAY=false OUT=true RUN git config --file="$gitrepo" subrepo.remote
+    subrepo_remote="$output"
+  fi
+
+  if [ -z "$subrepo_branch" ]; then
+    SAY=false OUT=true RUN git config --file="$gitrepo" subrepo.branch
+    subrepo_branch="$output"
+  fi
+
+  SAY=false OUT=true RUN git config --file="$gitrepo" subrepo.commit
+  subrepo_commit="$output"
+
+  FAIL=false \
+  SAY=false OUT=true RUN git config --file="$gitrepo" subrepo.parent
+  subrepo_parent="$output"
+
+  if [ -z "$subrepo_parent" ]; then
+    SAY=false OUT=true RUN git config --file="$gitrepo" subrepo.former
+    subrepo_former="$output"
+  fi
+}
+
+# Update the subdir/.gitrepo state file:
+update-gitrepo-file() {
+  local short_commit=
+
+  local newfile=false
+  [ ! -e "$gitrepo" ] &&
+    newfile=true
+
+  $newfile && cat <<... > "$gitrepo"
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+...
+
+  # TODO: only update remote and branch if supplied and $update_wanted
+  if $newfile || [ $update_wanted -a -n "$override_remote" ]; then
+    RUN git config --file="$gitrepo" subrepo.remote "$subrepo_remote"
+  fi
+
+  if $newfile || [ $update_wanted -a -n "$override_branch" ]; then
+    RUN git config --file="$gitrepo" subrepo.branch "$subrepo_branch"
+  fi
+
+  RUN git config --file="$gitrepo" subrepo.commit "$upstream_head_commit"
+  RUN git config --file="$gitrepo" subrepo.parent "$original_head_commit"
+  RUN git config --file="$gitrepo" subrepo.cmdver "$VERSION"
+}
+
+#------------------------------------------------------------------------------
+# Enviroment checks:
+#------------------------------------------------------------------------------
+
+# Check that system is ok for this command:
+assert-environment-ok() {
+  type git &> /dev/null ||
+    error "Can't find your 'git' command in '$PATH'."
+  git_version="$(git --version)"
+  if [[ "$git_version" < "git version 1.7" ]]; then
+    error "Requires git version 1.7 or higher; you have '$git_version'."
+  fi
+}
+
+# Make sure git repo is ready:
+assert-repo-is-ready() {
+  # Skip this for trivial info commands:
+  [[ "$command" =~ ^(help|version)$ ]] && return
+
+  # We must be inside a git repo:
+  git rev-parse --git-dir &> /dev/null ||
+    error "Not inside a git repository."
+
+  # Get the original branch and commit:
+  git:get-head-branch-name
+  original_head_branch="$output"
+
+  output=
+  if git:rev-exists HEAD; then
+    git:get-head-branch-commit
+  fi
+  original_head_commit="${output:-none}"
+
+  # If a subrepo branch is currently checked out, then note it:
+  if [[ "$original_head_branch" =~ ^subrepo/(.*) ]]; then
+    error "Can't '$command' while subrepo branch is checked out."
+  fi
+
+  # Make sure we are on a branch:
+  [ "$original_head_branch" == HEAD -o -z "$original_head_branch" ] &&
+    error "Must be on a branch to run this command."
+
+  # In a work-tree:
+  SAY=false OUT=true RUN git rev-parse --is-inside-work-tree
+  [ "$output" == true ] ||
+    error "Can't 'subrepo $command' outside a working tree."
+
+  # HEAD exists:
+  [[ "$command" == "clone" ]] ||
+    RUN git rev-parse --verify HEAD
+
+  # Repo is in a clean state:
+  if [[ "$command" =~ ^(clone|pull|push|branch|commit)$ ]]; then
+    git update-index -q --ignore-submodules --refresh
+    git diff-files --quiet --ignore-submodules ||
+      error "Can't $command subrepo. Unstaged changes."
+    if [ "$command" != clone ] || git:rev-exists HEAD; then
+      git diff-index --quiet --ignore-submodules HEAD ||
+        error "Can't $command subrepo. Working tree has changes."
+      git diff-index --quiet --cached --ignore-submodules HEAD ||
+        error "Can't $command subrepo. Index has changes."
+    else
+      # Repo has no commits and we're cloning a subrepo. Working tree won't
+      #  possibly have changes as there was nothing initial to change.
+      [[ -z "$(git ls-files)" ]] ||
+        error "Can't $command subrepo. Index has changes."
+    fi
+  fi
+
+  # For now, only support actions from top of repo:
+  if [ "$(git rev-parse --git-dir)" != '.git' ]; then
+    error "Need to run subrepo command from top level directory of the repo."
+  fi
+}
+
+# If subdir exists, make sure it is empty:
+assert-subdir-empty() {
+  if [ -e "$subdir" ] && [ -n "$(ls -A $subdir)" ]; then
+    error "The subdir '$subdir' exists and is not empty."
+  fi
+}
+
+#------------------------------------------------------------------------------
+# Getters of various information:
+#------------------------------------------------------------------------------
+
+# Find all the current subrepos by looking for all the subdirectories that
+# contain a `.gitrepo` file.
+get-all-subrepos() {
+  local paths=($(
+    find . -name '.gitrepo' |
+      grep -v '/.git/' |
+      grep '/.gitrepo$' |
+      sed 's/.gitrepo$//' |
+      sort
+  ))
+  subrepos=()
+  local path
+  for path in "${paths[@]}"; do
+    add-subrepo "$path"
+  done
+}
+
+add-subrepo() {
+  for path in "${subrepos[@]}"; do
+    [[ "$1" =~ ^$path ]] && return
+  done
+  subrepos+=("$1")
+}
+
+# Determine the upstream's default head branch:
+get-upstream-head-branch() {
+  OUT=true RUN git ls-remote $subrepo_remote
+  local remotes="$output"
+  [ -n "$remotes" ] ||
+    error "Failed to 'git ls-remote $subrepo_remote'."
+  local commit="$(
+    echo "$remotes" |
+    grep HEAD |
+    cut -f1
+  )"
+  local branch="$(
+    echo "$remotes" |
+    grep "$commit" |
+    grep -v HEAD |
+    head -n1 |
+    cut -f2
+  )"
+  [[ "$branch" =~ refs/heads/ ]] ||
+    error "Problem finding remote default head branch."
+  output="${branch#refs/heads/}"
+}
+
+# Commit msg for an action commit:
+get-commit-message() {
+  local commit="$(git rev-parse --short "$upstream_head_commit")"
+  local args=()
+  if $all_wanted; then
+    args+=("$subdir")
+  fi
+  args+=(${commit_msg_args[@]})
+
+  # Find the specific git-subrepo code used:
+  local command_remote='???'
+  local command_commit='???'
+  get-command-info
+
+  OUT=true RUN git rev-parse --short "$subrepo_commit_ref"
+  local merged="$output"
+
+  # Format subrepo commit message:
+  cat <<...
+git subrepo $command ${args[@]}
+
+subrepo:
+  subdir:   "$subdir"
+  merged:   "$merged"
+upstream:
+  origin:   "$subrepo_remote"
+  branch:   "$subrepo_branch"
+  commit:   "$commit"
+git-subrepo:
+  version:  "$VERSION"
+  origin:   "$command_remote"
+  commit:   "$command_commit"
+...
+}
+
+# Get location and version info about the git-subrepo command itself. This
+# info goes into commit messages, so we can find out exactly how the commits
+# were done.
+get-command-info() {
+  local bin="$0"
+  if [[ "$bin" =~ / ]]; then
+    local lib="$(dirname "$bin")"
+    # XXX Makefile needs to install these symlinks:
+    # If `git-subrepo` was system-installed (`make install`):
+    if [ -e "$lib/git-subrepo.d/upstream" ] &&
+       [ -e "$lib/git-subrepo.d/commit" ]; then
+      command_remote=$(readlink "$lib/git-subrepo.d/upstream")
+      command_commit=$(readlink "$lib/git-subrepo.d/commit")
+    elif [[ "$lib" =~ / ]]; then
+      lib="$(dirname "$lib")"
+      if [ -d "$lib/.git" ]; then
+        local remote="$(
+          GIT_DIR=$lib/.git git remote -v |
+            grep '^origin' |
+            head -n1 |
+            cut -f2 |
+            cut -d ' ' -f1
+        )"
+        if [ -n "$remote" ]; then
+          command_remote="$remote"
+        else
+          local remote="$(
+            GIT_DIR=$lib/.git git remote -v |
+              head -n1 |
+              cut -f2 |
+              cut -d ' ' -f1
+          )"
+          if [ -n "$remote" ]; then
+            command_remote="$remote"
+          fi
+        fi
+        local commit="$(GIT_DIR="$lib/.git" git rev-parse --short HEAD)"
+        if [ -n "$commit" ]; then
+          command_commit="$commit"
+        fi
+      fi
+    fi
+  fi
+}
+
+#------------------------------------------------------------------------------
+# Instructional errors:
+#------------------------------------------------------------------------------
+error-pull-rebase() {
+  cat <<...
+The 'git rebase' command failed during your pull.
+You will need to finish the pull by hand. Follow these steps:
+
+  # Resolve the rebase conflicts
+  git checkout $original_head_branch
+  git subrepo commit $subdir
+
+...
+  error-reset-message pull
+}
+
+error-push-rebase() {
+  cat <<...
+The 'git rebase' command failed during your push.
+You will need to finish the push by hand. Follow these steps:
+
+  # Resolve the rebase conflicts
+  git checkout $original_head_branch
+  git subrepo push $subdir subrepo-push/$subdir
+
+...
+  error-reset-message push
+}
+
+error-reset-message() {
+  cat <<...
+To abort the $1 and reset back to where you started:
+
+  git rebase --abort
+  git checkout ORIG_HEAD
+  git subrepo clean $subdir
+
+See 'git help subrepo' for more help.
+
+...
+}
+
+#------------------------------------------------------------------------------
+# Git command wrappers:
+#------------------------------------------------------------------------------
+
+git:branch-exists() {
+  git:rev-exists "refs/heads/$1"
+}
+
+git:rev-exists() {
+  git rev-list "$1" -1 &> /dev/null
+}
+
+git:ref-exists() {
+  test -n "$(git for-each-ref "$1")"
+}
+
+git:get-head-branch-name() {
+  output=
+  local name="$(git symbolic-ref --short --quiet HEAD)"
+  [ "$name" == HEAD ] && return
+  output="$name"
+}
+
+git:get-head-branch-commit() {
+  output="$(git rev-parse HEAD)"
+}
+
+git:commit-in-rev-list() {
+  local commit="$1"
+  local list_head="$2"
+  git rev-list "$list_head" | grep -q "^$commit"
+}
+
+git:make-ref() {
+  local ref_name="$1"
+  local commit="$(git rev-parse "$2")"
+  git update-ref "$ref_name" "$commit"
+}
+
+#------------------------------------------------------------------------------
+# Low level sugar commands:
+#------------------------------------------------------------------------------
+
+# Smart command runner:
+RUN() {
+  $debug_wanted && $SAY && say '>>>' $*
+  if $EXEC; then
+    "$@"
+    return $?
+  fi
+
+  OK=true
+  set +e
+  local rc=
+  local out=
+  if $debug_wanted; then
+    out="$("$@")"
+  else
+    if $OUT; then
+      out="$("$@" 2>/dev/null)"
+    else
+      out="$("$@" 2>&1)"
+    fi
+  fi
+  rc=$?
+  set -e
+
+  if [ "$rc" -ne 0 ]; then
+    OK=false
+    $FAIL && error "Command failed: '$*'."
+  fi
+  if $OUT; then
+    output="$out"
+  fi
+}
+
+# Call a function with indent increased:
+CALL() {
+  local INDENT="  $INDENT"
+  "$@"
+}
+
+# Print verbose steps for commands with steps:
+o() {
+  if $verbose_wanted; then
+    echo "$INDENT* $@"
+  fi
+}
+
+# Print unless quiet mode:
+say() {
+  $quiet_wanted || echo "$@"
+}
+
+# Print to stderr:
+err() {
+  echo "$@" >&2
+}
+
+# Check if OK:
+OK() {
+  $OK
+}
+
+# Nicely report common error messages:
+error() {
+  local msg=
+  printf -v msg "git-subrepo: %s\n" "$1"
+  die "$msg"
+}
+
+# Start at the end:
+[ "$BASH_SOURCE" != "$0" ] || main "$@"
+
+# vim: set ft=sh sw=2 lisp:
