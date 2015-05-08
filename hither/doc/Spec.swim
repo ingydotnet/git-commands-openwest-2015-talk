@@ -1,0 +1,150 @@
+= Hither Specification =
+
+Hither is a general purpose database munging tool.
+
+== Overview
+
+Hither's primary goals are:
+
+* Provide a CLI command called `hither`
+* RDBMS schema and database migration
+  * Non-linear
+  * Reversable
+* Provide a schema data definition language
+  * Hither Schema Definition (HSD)
+* Provide a migration data definition language
+  * Hither Migration Definition (HMD)
+* Programming language agnostic
+* Database framework agnostic
+* Schema definition diffing to generate migrations
+* Smart migration dependency tracking
+* Generate database files from definitions
+  * DB schema files
+  * DB migration files
+* Generate ORM code from definitions
+  * DBIx::Class classes for Perl
+  * Django model classes for Python
+  * ActiveRecord classes for Ruby
+
+== Hither Command Actions
+
+The `hither` command has many actions. Here are some examples:
+
+- `hither make --in=<hsd1> -in=<hsd2> --to=hmd`
+
+  Produce a Hither migration from 2 Hither schemas definitions.
+
+- `hither make …`
+
+  Generate things from things. Useful for generating ORM code. Examples:
+
+    hither make --in=database.hsd --out=dbix
+    hither make --in=database.hsd --out=django
+
+- `hither load …`
+
+  Import a database from a source. Could be a dump or another database.
+
+- `hither info …`
+
+  Show info about a data source.
+
+== Data Sources and Targets
+
+- Databases
+
+  Actual live databases.
+
+- Dumps
+
+  Database and schema dumps.
+
+- Hither Schema Definitions (HSD files)
+
+  Hither defined schema data in YAML files.
+
+- Hither Migration Definitions (HMD files)
+
+  Hither defined migration data in YAML files.
+
+- Migration SQL
+
+  SQL files that migrate a specific database in a specific state.
+
+== Hither Migration Strategy
+
+A database is always in a given "state". This state is effectively its schema.
+Hither can:
+
+* Generate a HSD file from a DB's schema.
+  * HSD is meant to be canonical.
+  * Human edited/maintained.
+  * Everything else generated from it.
+* Generate a DB schema from a HSD.
+* Generate ORM code (DBIx::Class, Django) from a HSD.
+* Diff 2 HSD files to produce a migration.
+
+The state should be given a name.  The exact name scheme is yet TBD. It could
+be the SHA1 of the HSD file. It could include the branch name of associated
+code.
+
+The state-id should be stored in the database. It can be stored in a `hither`
+table.
+
+Each branch of a codebase expects a DB to be in some exact state. The code
+should somehow declare the current state-id. If only one codebase is using the
+database, the HSD files should be kept in that codebase. The generated ORM
+code could have that state-id baked in.
+
+== Implementation Strategy
+
+Hither will start out as a wrapper around other tools. It will patch and fill
+in gaps as necessary.
+
+For starters, heavy use will be made of:
+
+- `SQL::Translator`
+
+  This module does a lot of transformations. It is a good starting point. (It
+  is the basis of much of DBIx::Class::DeploymentHandler).
+
+=== Django migrate
+
+Pythons Django MVC framework has a built-in database migration strategy and
+toolset. It appears to be well thought out. Hither will attempt to follow the
+Django leads that make sense.
+
+The main difference is that Django uses Python code as the canonical definition
+of things to generate other things. Hither uses (langauge agnostic) data to
+define all the same things, and generate the same things, including the Python,
+Perl, Ruby, etc ORM code.
+
+== Databases of Focus
+
+Eventually all popular, open source databases should be supported. For now just
+concentrating on 3 for bootstrapping phase. Having 3 concerns is a good number
+for agnostic, yet focused, projects.
+
+- PostgreSQL
+
+  This DB is driving the need for this tool currently.
+
+- SQLite
+
+  Simple, single file, real database. Good for prototyping and testing.
+
+- CSV
+
+  CSV is considered a database since so much open data is in this format.
+
+== ORMs of Focus
+
+The primary focus for now, is Perl's `DBIx::Class`.
+
+== Sample Usage
+
+  hither load --in=http://opendata.org/some.csv --out=foo.pg
+  hither make --in=foo.pg --out=some.hsd
+  hither make some1.hsd some2.hsd --out=migrate.hmd
+  hither make --in=migrate.hmd --out=sql
+
