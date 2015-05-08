@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:ingydotnet/pegex-js.git
+	branch = master
+	commit = 4c64221aa2c0d4efde64c1d01b03848abf0b3cb3
+	parent = 9307ff34f05ae6ea4d8d24ef863029d74cf06c8c
+	cmdver = 0.2.1
