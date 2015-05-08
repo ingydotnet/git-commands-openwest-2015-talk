@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:ingydotnet/io-all-pm.git
+	branch = master
+	commit = e62731b8b4bb5593d13538404171efe448a5a272
+	parent = 7a434a36d2001e22c7f1aaa8189d62f16c45d9ac
+	cmdver = 0.2.1

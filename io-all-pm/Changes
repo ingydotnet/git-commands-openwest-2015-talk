@@ -1,0 +1,429 @@
+---
+version: 0.86
+date:    Thu Jan  1 18:44:25 PST 2015
+changes:
+- Revamp docs
+---
+version: 0.85
+date:    Mon Dec 15 08:34:09 CST 2014
+changes:
+- Fix copy tests on Windows
+---
+version: 0.84
+date:    Sun Dec 14 02:06:37 CST 2014
+changes:
+- Pass separator along when tie'ing (Fixes GH#52, Arthur Axel 'fREW' Schmidt)
+- Add ->copy method (Arthur Axel 'fREW' Schmidt)
+- Prefix private methods with underscores (Arthur Axel 'fREW' Schmidt)
+---
+version: 0.83
+date:    Sat Dec 13 01:00:16 CST 2014
+changes:
+- Allow passing an argument to ->relative (Arthur Axel 'fREW' Schmidt)
+---
+version: 0.82
+date:    Thu Nov 13 15:10:32 CST 2014
+changes:
+- Use bsd_glob for ::Dir->glob (Arthur Axel 'fREW' Schmidt)
+---
+version: 0.81
+date:    Wed Nov  5 18:18:25 PST 2014
+changes:
+- Fixed a doc formatting bug. 
+---
+version: 0.80
+date:    Tue Nov  4 11:13:18 PST 2014
+changes:
+- Make the Role Call list link to their doc sections.
+---
+version: 0.79
+date:    Tue Sep  2 14:34:27 MDT 2014
+changes:
+- Doc enhancement. PR/51. @nheinric++
+---
+version: 0.78
+date:    Thu Aug 28 11:56:36 PDT 2014
+changes:
+- Release to steal indexing back from Alt::IO::All::new.
+---
+version: 0.77
+date:    Tue Aug 26 12:37:29 PDT 2014
+changes:
+- Add new overloads from PR/49 @ginzel++
+---
+version: 0.76
+date:    Tue Aug 19 16:21:05 PDT 2014
+changes:
+- Relplace tabs with spaces
+---
+version: 0.75
+date:    Sat Aug 16 16:41:13 PDT 2014
+changes:
+- Change testdir to t
+---
+version: 0.74
+date:    Sat Aug 16 16:03:33 PDT 2014
+changes:
+- Fix strict/warnings
+---
+version: 0.73
+date:    Sat Aug 16 15:35:55 PDT 2014
+changes:
+- Remove 'use 5.x.x' from code
+---
+version: 0.72
+date:    Sat Aug 16 11:19:00 PDT 2014
+changes:
+- Meta 0.0.2
+---
+version: 0.71
+date:    Sat Aug 16 03:45:11 PDT 2014
+changes:
+- Eliminate spurious trailing whitespace
+---
+version: 0.70
+date:    Sat Aug 16 02:08:08 PDT 2014
+changes:
+- Eliminate File::Basename from test/
+---
+version: 0.69
+date:    Fri Aug 15 15:55:18 PDT 2014
+changes:
+- Add t/000-compile-modules.t
+- CPAN Day 2014 - 21 Release Salute!
+---
+version: 0.68
+date:    Sun Aug 10 08:56:08 PDT 2014
+changes:
+- PR/47. Doc fixes. @ginzel++
+---
+version: 0.67
+date:    Sat Aug  2 11:58:01 PDT 2014
+changes:
+- Fix Copyright years.
+---
+version: 0.66
+date:    Wed Jul 16 23:39:38 PDT 2014
+changes:
+- Move doc to Swim
+- Fix Meta and add Contributing file
+---
+version: 0.65
+date:    Sat Jun 14 12:48:31 PDT 2014
+changes:
+- Support recommended modules again
+---
+version: 0.64
+date:    Sat Jun 14 12:33:21 PDT 2014
+changes:
+- New badge syntax
+- Changed the ABSTRACT
+---
+version: 0.63
+date:    Sun Jun  8 12:45:43 PDT 2014
+changes:
+- Add coveralls badge
+- Finish porting pod to kwim
+---
+version: 0.62
+date:    Sat Jun  7 13:36:32 PDT 2014
+changes:
+- Convert release to Zilla::Dist
+- Start converting doc to Kwim
+---
+version: 0.61
+date:
+changes:
+- Fix GH#44 (Thanks Shlomi Fish!)
+---
+version: 0.60
+date:
+changes:
+- Fix IO Layer situation (Thanks Mithaldu!)
+---
+version: 0.59
+date:
+changes:
+- Fix possible infinite loop in t/accept.t (Thanks C. Wallace for complaining)
+  (closes #42)
+- Fix yet another utf8 validation issue (Thanks Mithaldu for complaining)
+  (closes #38)
+- Fix warnings running t/tie.t on windows (Thanks Mithaldu for complaining)
+  (closes #37)
+---
+version: 0.58
+date:
+changes:
+- Fix canonpath on MSWin32
+- Fix marking files as both binary and utf8 (Thanks Mithaldu!) (closes GH#36)
+---
+version: 0.57
+date:
+changes:
+- Fix printing to a tie'd object, closes GH#26 (thanks Graham Knop for helping)
+- Fix tests if $^X ne 'perl', closes GH#35 (thanks Hugemeir for the report)
+---
+version: 0.56
+date:
+changes:
+- Return realpath for canonpath when possible (closes GH#34)
+- Fix regression related to chaining dirs caused by making '' not become '/'
+- correctly check exists for ::File, ::Dir, and ::Link
+- RT#61627/GH#29 and Fix RT#82633/GH#32, thanks Graham Knop for helping
+- Some doc cleanup around the SYNOPSIS (Thanks Mithaldu)
+---
+version: 0.55
+date:
+changes:
+- Change minimum perl version to 5.8.1, and thus remove dep for IO::String
+---
+version: 0.54
+date:
+changes:
+- Remove mentions of unimplemented strict (Thanks Mithaldu, GH#15)
+- Allow testing on non SDBM DBM's (thanks Jerry D. Hedden)
+- Abandon RT in favor of GitHub Issues
+---
+version: 0.53
+date:
+changes:
+- Make mkdir die if it fails (thanks Martyn Pearce for RT#61697)
+- Fix possible path test issues, esp in Win32 (Thanks Mithaldu)
+- Fix ->binary under -utf8 import mode (thanks T. Linden for RT#81224)
+- Validate UTF-8 in ->utf8 (thanks Ovid for RT#74642)
+- Consistently use :encoding($encoding) (thanks Bernardo Rechea for RT#68512)
+- Pass perms to mkpath in assert_dirpath (thanks Rob Kinyon for RT#53687)
+- Fix minor POD niggle (thanks Greg Skyles for RT#83798)
+- Remove broken test for ->mimetype (thanks Slaven Rezic for RT#91743)
+- Skip t/encoding.t for perls built without PerlIO::encoding (thanks
+  Jerry D. Hedden for RT#26230)
+---
+version: 0.52
+date:
+changes:
+- Add a fix for io->file("foobar")->assert (Shlomi Fish)
+- Make io->file('') not break on Windows systems (Roy Ivy III)
+- Fix dangling file handles in tests (Roy Ivy III)
+---
+version: 0.51
+date:    Mon Dec 30 13:55:00 CDT 2013
+changes:
+- Make '' not become / when using io->dir('')
+---
+version: 0.50
+date:    Fri Oct 18 13:08:41 PDT 2013
+changes:
+- Fix for rt87200
+---
+version: 0.49
+date:    Fri Oct 18 01:05:39 CDT 2013
+changes:
+- Fix various tests on Windows
+---
+version: 0.48
+date:    Tue Oct  8 01:45:39 CDT 2013
+changes:
+- Add ->os method to ::Filesys (Arthur Axel "fREW" Schmidt)
+---
+version: 0.47
+date:    Mon Sep 30 18:57:52 CDT 2013
+changes:
+- Add ->glob method to ::Dir (Arthur Axel "fREW" Schmidt)
+- Add list based constructors to ::Dir and ::File (Arthur Axel "fREW" Schmidt)
+- Add ->mimetype method to ::FileSys (Arthur Axel "fREW" Schmidt)
+- Add ->ext method to ::FileSys (Arthur Axel "fREW" Schmidt)
+- All tests should be parallelizable (Shlomi Fish)
+---
+version: 0.46
+date:    Wed Jul 25 17:35:44 PDT 2012
+changes:
+- Re-releasing to reclaim indexing from Alt-IO-All-new
+---
+version: 0.45
+date:    Wed Jul 18 22:15:04 EDT 2012
+changes:
+- Added an example for ->assert and fixed the \E warnings on 5.16, courtesy shlomi fish
+---
+version: 0.44
+date:    Wed Oct  5 18:11:27 EDT 2011
+changes:
+- Switch from testing $^V to $^] in DESTROY since $^V comparisons leak pre-5.14 (mst)
+---
+version: 0.43
+date:    Wed Jul 20 08:34:01 PDT 2011
+changes:
+- Fix directory scalar deref for mst++
+---
+version: 0.42
+date:    Mon Jul 18 11:31:43 PDT 2011
+changes:
+- Doc work and tests by Shlomi Fish
+- Use Module::Package
+- Fix rt41819
+---
+version: 0.41
+date:    Mon Aug 16 22:33:45 PDT 2010
+changes:
+- Recent Test::More was triggering errors in file_spec.t.
+- Thanks to Torsten Raudssus for a fix. Getty++
+---
+version: 0.40
+date:    Sun Aug 15 15:22:12 PDT 2010
+changes:
+- Fixed a bug in t/chdir.t
+---
+version: 0.39
+date:    Thu Dec 11 23:22:56 PST 2008
+changes:
+- Fix tests on 5.6.
+---
+version: 0.38
+date:    Mon Apr  9 10:52:44 JST 2007
+changes:
+- Add generic encoding, instead of just utf8.
+---
+version: 0.37
+date:    Fri Apr  6 18:04:27 JST 2007
+changes:
+- make catdir work with current dir in addition to other args.
+- make catfile work with current dir in addition to other args.
+- Add support for import flags like -strict and -utf8
+---
+version: 0.36
+date:    Mon Oct 16 14:48:58 PDT 2006
+changes:
+- Applied the patch from http://rt.cpan.org/Public/Bug/Display.html?id=20053 Made sure Carp is required and the sub Carp::carp is predeclared in IO/All.pm.
+---
+version: 0.35
+date:    Tue May  9 08:25:37 PDT 2006
+changes:
+- Remove dependency on XXX.pm *groan*
+---
+version: 0.34
+date:    Mon May  8 01:03:12 PDT 2006
+changes:
+- Remove dependency on Spiffy.pm
+- Apply patches and fix bugs from rt
+- rt tickets - 11552 12048 14184 12966 13879 17105 7448 11463 7410 7337 7527
+  18465
+---
+version: 0.33
+date:    Fri Dec 17 02:33:41 PST 2004
+changes:
+- Fixed some nagging problems with the tests
+---
+version: 0.32
+date:    Wed Dec 15 12:19:44 PST 2004
+changes:
+- io('path/to/symlink') would return a file object if the link was to a file. (Dave Rolsky)
+- $link->readlink incorrectly returned a new IO::All::Link object, no matter what the link pointed to. (Dave Rolsky)
+- io($io_all_object) would not return an object of the same type as the object give to io(), it would always return a plain IO::All object. (Dave Rolsky)
+- add head and tail methods
+---
+version: 0.31
+date:    Sun Aug  8 22:49:46 PDT 2004
+changes:
+- added readdir
+- let exists work on non-existant filename
+---
+version: 0.31
+date:    Sat Jul 24 20:19:10 PDT 2004
+changes:
+- absolute, relative, pathname
+- chdir
+- stat on unopened file/dir
+---
+version: 0.30
+date:    Mon Jul 19 11:23:15 PDT 2004
+changes:
+- Split module into several classes
+- Pluggable framework
+- file->all
+- ->touch
+- ->empty
+---
+version: 0.22
+date:    Tue Jun  1 11:20:17 PDT 2004
+changes:
+- Make tests pass on MSWin32 :P
+- Added exists method
+---
+version: 0.21
+date:    Sat May 29 12:45:00 PDT 2004
+changes:
+- Fixed buglets in sockets
+- Added Cookbook example for Tiny Web Server
+---
+version: 0.20
+date:    Thu May 27 01:46:04 PDT 2004
+changes:
+- Rewrote documentation
+- Refactored construction
+- File::Spec support
+- File::Path support
+- lots of new methods
+---
+version: 0.19
+date:    Mon May 24 17:02:24 PDT 2004
+changes:
+- DBM support
+- MLDBM support
+- chomp support
+- Fixed forking server zombie issues
+- Replaced flags with methods (-tie -fork -lock, etc)
+- Added chainable options `assert, chomp, deep, rdonly, rdwr, sort`
+- Fixed problems with perl-5.6.1 and Solaris
+---
+version: 0.18
+date:    Sun May 16 17:40:37 PDT 2004
+changes:
+- Get the shift out
+- Support DBM files as has overload
+- Add ->scalar() method
+- close orphaned socket on fork after accept
+- seek now opens file for read/write
+- polish subtle behaviour
+- added stat functions
+---
+version: 0.17
+date:    Fri May  7 01:14:36 PDT 2004
+changes:
+- File to File copy use File::Copy for speed
+---
+version: 0.16
+date:    Mon Mar 22 23:35:32 PST 2004
+changes:
+- Added tests for some subtleties
+- Added check_nmake to Makefile.PL
+---
+version: 0.15
+date:    Mon Mar 15 09:50:46 PST 2004
+changes:
+- Got things working on MSWin32
+- turned off lock.t on solaris and cygwin for now
+---
+version: 0.14
+date:    Mon Mar 15 00:19:21 PST 2004
+changes:
+- Added multiple dispatch overloading
+- Added Tie::File support
+---
+version: 0.13
+date:    Fri Mar 12 00:02:10 PST 2004
+changes:
+- Accidentally left debugging code in module.
+---
+version: 0.12
+date:    Tue Mar  2 21:50:05 PST 2004
+changes:
+- Require IO::String
+---
+version: 0.11
+date:    Tue Mar  2 09:21:39 PST 2004
+changes:
+- Depend on newer Spiffy
+---
+version: 0.10
+date:    Sat Feb  7 00:55:42 PST 2004
+changes:
+- Initial release.
